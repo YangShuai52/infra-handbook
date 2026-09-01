@@ -2,12 +2,45 @@
 
 仅在需要启动服务、制作最小 curl 或运行 ais_bench 时读取本文件。
 
+## 选择运行卡
+
+若用户指定了物理卡号，按用户指定执行并记录，不要自行改选。若用户没有指定：
+
+1. 先检查当前 shell 是否已有 `ASCEND_RT_VISIBLE_DEVICES`，不要静默覆盖继承的设备约束；
+2. 使用设备查询命令检查所有可见 310P 的健康状态、占用进程和可用显存；
+3. 根据模型预估显存和 `-tp` 数量选择足够的空闲卡。空闲卡至少应无其他活动计算进程、状态正常且可用显存满足服务启动需求；
+4. TP 场景选择数量等于 TP degree 的可用卡，并考虑实际拓扑；不要把不同 rank 的需求挤到同一张物理卡；
+5. 启动前再次确认占用，避免检查与启动之间卡已被其他任务使用。
+
+检查示例：
+
+```bash
+echo "${ASCEND_RT_VISIBLE_DEVICES:-<unset>}"
+npu-smi info
+```
+
+确认物理卡号后，只在当前服务 shell 中设置：
+
+```bash
+# 单卡示例
+export ASCEND_RT_VISIBLE_DEVICES=<physical-device-id>
+
+# TP 多卡示例
+export ASCEND_RT_VISIBLE_DEVICES=<physical-id-0>,<physical-id-1>
+```
+
+环境变量设置后，进程内可见设备编号可能重新映射；记录物理卡号、变量值和服务使用的逻辑 rank 映射。不要把该变量写入用户 profile、镜像或全局启动脚本。
+
+如果没有满足条件的空闲卡，报告各卡的健康状态、占用和可用显存并等待用户处理。不得终止其他任务、抢占占用卡或为了腾卡修改其他进程。
+
 ## 启动服务
 
 先用当前版本的 `vllm serve --help` 核对参数。以下是诊断模板，不是可直接照抄的固定命令：
 
 ```bash
 cd <vllm-ascend-source-path>
+# 用户未指定卡时，使用上一步选择的物理卡号
+export ASCEND_RT_VISIBLE_DEVICES=<selected-physical-device-ids>
 vllm serve <weight-path> \
   --host 127.0.0.1 \
   --port 1025 \
@@ -30,7 +63,7 @@ vllm serve <weight-path> \
 - `cudagraph_capture_sizes` 与 TP、并发和版本有关。图模式本身也是需要隔离的变量。
 - `--dtype float16`、`-tp <n>`、`--enable-auto-tool-choice` 与 `--tool-call-parser qwen3_coder` 按模型和复现场景启用，不要无条件添加。
 
-保存完整启动命令、环境变量和从进程启动到服务就绪的日志。
+保存选中的物理卡号、`ASCEND_RT_VISIBLE_DEVICES`、完整启动命令、环境变量和从进程启动到服务就绪的日志。
 服务拉起、复现和源码 debug 均从用户确认的 vLLM-Ascend 源码目录执行；先记录 `pwd`、当前分支和 `HEAD`，避免在错误源码副本中定位。
 
 ## 最小 curl 复现
