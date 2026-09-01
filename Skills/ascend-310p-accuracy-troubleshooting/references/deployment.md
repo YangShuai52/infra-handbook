@@ -50,11 +50,12 @@ pip uninstall vllm-ascend vllm
 ```bash
 python --version
 pip show vllm vllm-ascend
+pip show torch-npu
 pip freeze
 npu-smi info
 ```
 
-同时记录 vLLM、vLLM-Ascend branch/commit，vLLM-Ascend 源码路径，CANN、驱动、固件版本，容器镜像标签/摘要、310P 卡数及拓扑。若命令在当前环境不可用，记录等价信息，不要为收集信息而改变环境。
+同时记录 vLLM、vLLM-Ascend branch/commit，vLLM-Ascend 源码路径，CANN、PTA/`torch_npu`、驱动、固件版本，容器镜像标签/摘要、310P 卡数及拓扑。若命令在当前环境不可用，记录等价信息，不要为收集信息而改变环境。
 
 ## 版本匹配是首要约束
 
@@ -146,11 +147,28 @@ pip uninstall triton_ascend triton
 
 服务启动时通常还需禁用 310P 不支持的 `npugraph_ex`；详见 [accuracy-testing.md](accuracy-testing.md)。
 
-## 构建残留与 CANN 替换
+## 构建残留与底层组件变更边界
 
 构建残留可能导致非源码变更引起的编译错误。不得自动批量删除 `csrc/build`、`csrc/output`、`csrc/build_out`、`csrc/third_party/ascend_protobuf` 或 `csrc/third_party/abseil-cpp`。先记录构建日志和这些路径，再让用户手动清理或使用新的源码副本/容器。
 
-替换 CANN、310P ops 或 NNAL 属于高影响环境变更。仅当对比矩阵明确要求且用户授权时，按目标包版本的官方安装说明操作。替换前保留当前版本、安装路径、包校验信息和可回滚环境；不要把示例中的 `9.1.0` 当成固定要求。
+### 驱动禁止变更
+
+本 skill 的定位流程禁止升级、降级、重装或卸载 Ascend 驱动。即使证据指向驱动差异，也只能记录当前版本、复现证据和所需兼容关系，将其作为外部约束报告；不得执行或指导当前流程执行驱动变更。
+
+### CANN 或 PTA 变更必须确认
+
+CANN、310P ops、NNAL 或 PTA（通常表现为 `torch_npu`）属于高影响环境组件。只有 controlled comparison、tensor dump、组件替换实验的既有结果或明确调用链证据已经把问题定位到 CANN/PTA 时，才可以提出更新、降级、重装或卸载建议。版本看起来不匹配、存在较新版本或一般性兼容猜测都不足以触发变更。
+
+执行前必须向用户提供并获得明确确认：
+
+- 当前组件名称、版本、安装路径和来源；
+- 拟变更的组件及精确目标版本，不得使用含糊的“最新版”；
+- 指向 CANN/PTA 的定位证据，以及为何代码或配置层规避不足；
+- 受影响的容器/环境、预计中断和磁盘影响；
+- 备份或回滚方案；
+- 单 curl、tensor 对比和复杂精度回归计划。
+
+用户未确认时停止组件变更，继续提供不修改 CANN/PTA 的诊断结果、临时规避方案或下一项验证实验。获得确认后仍应优先在可回滚的独立容器中操作，并按目标版本的官方安装说明执行；不要把资料示例中的 `9.1.0` 当成固定要求。
 
 ## 部署完成后的核验
 
@@ -158,7 +176,7 @@ pip uninstall triton_ascend triton
 
 - `pip show` 指向预期源码路径；
 - 两个仓库 commit 与 `.github/vllm-main-verified.commit` 的关系明确；
-- CANN、驱动、固件与镜像标签已记录；
+- CANN、PTA/`torch_npu`、驱动、固件与镜像标签已记录；
 - 没有意外依赖升级；
 - 相同模型权重可在 good/bad 环境中读取；
 - 后续启动命令使用当前版本实际支持的参数。
