@@ -66,7 +66,7 @@ vllm serve <weight-path> \
 保存选中的物理卡号、`ASCEND_RT_VISIBLE_DEVICES`、完整启动命令、环境变量和从进程启动到服务就绪的日志。
 服务拉起、复现和源码 debug 均从用户确认的 vLLM-Ascend 源码目录执行；先记录 `pwd`、当前分支和 `HEAD`，避免在错误源码副本中定位。
 
-## 最小 curl 复现
+## 分级 curl 复现
 
 curl 的 host、port 和 model 必须与服务启动参数一致。
 
@@ -74,34 +74,52 @@ curl 的 host、port 和 model 必须与服务启动参数一致。
 curl -sS -X POST http://127.0.0.1:1025/v1/chat/completions \
   -H "Content-Type: application/json" \
   -d '{
-    "messages": [{"role": "user", "content": "爱因斯坦生日是哪天"}],
+    "messages": [{"role": "user", "content": "请说明爱因斯坦的出生日期、出生地、两项主要科学贡献及其影响。使用四个编号段落，每段至少两句，总字数 150–250 字。"}],
     "model": "<model-name>",
-    "max_tokens": 2048,
+    "max_tokens": 512,
     "stream": false,
     "temperature": 0.0
   }'
 ```
 
-为了形成可比证据，保存请求 JSON、HTTP 状态、原始响应、服务日志和重复次数。
+该示例至少要求完整句子和多个事实字段，不要退化为 `1+1` 或单 token 输出。它仍只是第一层。为了形成可比证据，保存请求 JSON、HTTP 状态、原始响应、服务日志和重复次数。
 
-当用户给出的精度信息不足时，不要等待完整数据集配置才开始：从用户描述、错误样本或已有评测结果中选择一个代表性输入，构造单 curl，并确认它是否能稳定体现 expected/actual 差异。若能：
+定位时按成本递增构造三层最小测试，通常不需要先跑全量：
+
+1. **结构化事实 curl**：答案可人工核验，要求多个字段或 80–300 字输出，`max_tokens` 至少覆盖 128–512 token；重复 3 次检查确定性。
+2. **长序列 curl**：构造或选取 2K–8K token 确定性上下文，要求从首部、中部、尾部抽取信息并生成 256–1024 token 输出。若问题涉及 MTP、prefix cache、图模式或状态缓存，加入共享长前缀的连续请求、不同输出长度、batch 增删/重排或小并发，确保执行到相关 decode/cache 路径。
+3. **真实失败样本 curl**：从 TextVQA 等原始评测失败样本中选 1–10 个，保留实际图片/base64、问题、chat template、生成参数与预期答案。优先用这些样本验证 good/bad、特性开关和补丁。
+
+长序列内容必须有确定的可验证答案，避免用开放式创作判断精度。记录 prompt token 数、completion token 数、重复次数、首个错误 token/字段；需要触发 batch 状态问题时记录请求到达和完成顺序。
+
+当用户给出的精度信息不足时，不要等待完整数据集配置才开始：先运行上述分级 curl，并确认它是否能稳定体现 expected/actual 差异。若能：
 
 1. 固定请求体、模型、生成参数、环境和重复次数；
 2. 在 good/bad 环境中验证该 curl 具有区分力；
 3. 将其作为特性拆分、commit 定位和修复验收的首要判据；
 4. 修复后先通过该 curl，再运行原始 ais_bench 或其他复杂精度回归。
 
-若单 curl 无法复现，不应宣称问题不存在。保留原始并发、batch、图模式、prefix cache、MTP 或评测后处理等可能触发条件，并逐步制作仍然足够小的复现。
+若简单 curl 无法复现，不应宣称问题不存在，也不要立即运行全量。先增加输入/输出长度、共享 prefix、重复 decode、batch 状态变化、小并发或真实失败样本；再运行 10–100 条有代表性的固定小样本集。只有修复候选已通过最小与小样本验证，才进入全量回归。
 
 ## ais_bench 环境
 
-基础安装示例：
+按 benchmark 仓库文档从仓库根目录安装，不要为省时使用 `--no-deps` 后再把缺失 Python 包误判成数据集缺失：
 
 ```bash
 git clone https://github.com/AISBench/benchmark.git
 cd benchmark
 pip3 install -e ./ --use-pep517
 ```
+
+安装后先核验 evaluator 运行环境：
+
+```bash
+pip show ais_bench_benchmark datasets mmengine
+pip check
+python -c "import ais_bench, datasets, mmengine; print(ais_bench.__file__, datasets.__version__, mmengine.__version__)"
+```
+
+`ModuleNotFoundError: No module named 'datasets'` 表示 Hugging Face `datasets` Python 依赖未安装，不表示 TextVQA 数据集不存在。网络/安装已获一次性授权时，按 benchmark 的 requirements/安装元数据自动补齐依赖，不重复询问；不要逐个猜包安装，也不要无依据升级 NumPy、Torch、CANN 或 PTA。
 
 镜像可能已经安装 `ais_bench_benchmark`，先检查：
 
@@ -180,6 +198,15 @@ ais_bench --models vllm_api_function_call_chat --datasets BFCL_gen_all --debug
 ```
 
 TextVQA 图片应有 3165 张（按原始资料），但数据集上游内容可能更新；使用当前数据集说明和校验结果确认完整性。非 base64 模式可能要求在服务启动工作目录下存在 `data/textvqa`。记录实际路径，不要盲目复制或覆盖用户数据。
+
+运行命令前必须 `cd` 到 benchmark 仓库根目录，并使用文档中的模型配置名。除非用户原始基线明确包含额外参数，不要擅自添加 `--num-warmups 0`、自建模型配置名或改变 batch/output 设置。需要诊断配置时复制为新文件并记录 diff；最终全量回归恢复用户原始 `vllm_api_general_chat` 配置和原始命令。
+
+## 定位与全量回归边界
+
+- **定位阶段**：分级 curl、1–10 个失败样本、10–100 条固定小样本。避免反复跑 3165 张全量 TextVQA。
+- **修复验收阶段**：最小样本和固定小样本通过后，必须执行原始 TextVQA 全量命令，保留总分、失败样本、raw output、评分文件和运行日志。
+- 全量结果必须与标准值和波动阈值比较。例如标准 82、允许 1% 波动时，明确阈值采用百分点还是相对百分比，并沿用用户/项目口径。
+- 全量未完成时只能报告“最小修复已验证”，不能报告“精度问题已修复完成”。仅当设备、数据或外部环境形成明确阻塞时暂停，并给出续跑命令与产物位置。
 
 ## 精度结果的最低证据标准
 

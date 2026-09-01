@@ -23,6 +23,17 @@ pip show vllm-ascend vllm
 
 后续服务化启动、日志复现、源码修改和 debug 均以该 vLLM-Ascend 源码目录为工作目录。不要根据包名猜测源码路径，也不要擅自切换分支或覆盖未提交改动。
 
+## 网络与安装授权
+
+首次需要联网或改变诊断环境时，一次性说明范围并取得用户授权。若用户已经明确允许目标服务器/容器联网、clone、切换诊断 commit 或安装配套组件，不再为下列每一步重复询问：
+
+- clone/fetch vLLM、vLLM-Ascend、ais_bench 及其 submodule；
+- 在干净的独立 clone/worktree 中 checkout 用户给出的分支或 commit；
+- 安装或更新该诊断环境中的 vLLM、vLLM-Ascend、ais_bench 及仓库声明的普通 Python/build 依赖；
+- 为 good/bad/bisect 创建隔离源码副本或可编辑安装。
+
+每次操作仍需记录仓库 URL、HEAD、安装命令、包路径和依赖变化。已有源码含未提交改动时不得直接 checkout；使用新 worktree/clone。一次性授权不包含驱动、固件、CANN、NNAL、PTA/`torch_npu`、批量删除、抢占设备或修改无关系统环境；这些继续遵守后文边界。若执行平台本身要求网络权限审批，直接发起所需工具审批，不再额外进行同内容的对话确认。
+
 ## 容器内判断现有版本是否可用
 
 若用户尚未搭建环境，先在目标容器内检查，而不是直接重装：
@@ -35,7 +46,7 @@ python -c "import vllm; print(vllm.__version__, vllm.__file__)"
 
 如能定位 vLLM-Ascend 源码或包路径，再核对它的分支/commit、`.github/vllm-main-verified.commit`、可编辑安装路径和简单 import。将“可用”定义为：分支符合用户要求、vLLM 配对兼容、包实际从预期位置加载，并能进入后续最小服务验证；不能只看版本字符串。
 
-如果现有 vLLM/vLLM-Ascend 对目标分支不可用，先向用户说明不兼容证据和计划安装的配对版本，并取得明确授权，再卸载两个包：
+如果现有 vLLM/vLLM-Ascend 对目标分支不可用，先说明不兼容证据和计划安装的配对版本。用户尚未授权诊断环境变更时只询问一次；已有上述授权时直接执行配对安装，不重复确认。需要卸载时记录原包版本、路径和回滚方式，再卸载两个包：
 
 ```bash
 pip uninstall vllm-ascend vllm
