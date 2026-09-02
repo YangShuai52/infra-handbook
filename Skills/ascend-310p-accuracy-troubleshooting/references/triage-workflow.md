@@ -50,17 +50,31 @@
 
 保存 raw output，必要时人工核验少量差异样本。只有确认模型输出路径发生有意义变化后，才继续归因到 serving 特性或底层计算。
 
+对重点失败样本同时保存 `target`、`raw_prediction`、`extracted_answer`、`normalized_prediction` 和单样本分数。若原始预测正确而提取或归一化结果错误，优先定位 evaluator、模板或后处理，不进入底层算子归因。
+
 ## 4. 先分析日期或 commit 区间
 
 如果用户提供了两个日期或两个 commit ID，先思考这一区间内哪些代码变化可能影响 310P，再安排定位实验：
 
 1. 确认比较的是哪个仓库、分支和提交拓扑；日期必须转换为该分支上实际存在的边界 commit；
 2. 查看区间的 commit/PR 列表和 diff 统计，再聚焦 310P、平台适配及当前模型路径；
-3. 结合症状检查图执行、量化/融合、MTP、prefix cache、scheduler、KV/mamba cache、TP/通信、dtype/shape、采样与后处理等相关调用链；
+3. 结合症状检查权重加载、位置编码/RoPE、图执行、量化/融合、MTP、prefix cache、scheduler、KV/mamba cache、TP/通信、dtype/shape、采样与后处理等相关调用链；
 4. 记录每个候选变更的“影响机制、与症状的对应关系、支持/反对证据、验证方式”；
 5. 按解释力和验证成本排序，先测试最有区分度的候选。
 
 分析时同时查看 vLLM-Ascend 与其配对 vLLM 的变化，避免遗漏上游接口或默认值改变。日期只是筛选窗口，不代表窗口内所有提交都在目标分支，也不能仅凭文件名、commit message 或 PR 标题定责。静态分析的产物是候选假设，不是根因结论。
+
+### 权重加载专项审计
+
+当简单 curl 正常但数据集子集或全量下降、同一权重不同启动结果不稳定，或区间 diff 触及 loader/quantization/model implementation 时，优先检查：
+
+- safetensors shard 是否并行加载，以及跨线程变换是否有真实互斥保护；普通布尔标记不能证明线程安全；
+- `add_`、`copy_`、`set_`、原地 transpose/reorder 等变换是否可能重复执行、漏执行或作用于共享 storage；
+- QKV 行重排、norm 修正、量化 scale/zero-point 处理是否与权重格式一致，并且恰好执行一次；
+- `view`/`transpose`/`contiguous` 后的 shape、stride、layout 是否符合下游自定义算子约定；
+- TP shard/rank 间加载、切分和变换顺序是否一致。
+
+用相同权重重复冷启动并比较重点参数校验值、首个失败样本和输出稳定性。发现可疑原地变换时，追踪其调用次数、线程/rank 和变换前后摘要；不要仅凭代码形态定责。
 
 可使用的只读检查示例：
 
@@ -78,7 +92,9 @@ git log --since=<date-a> --until=<date-b> --oneline -- <suspected-paths>
 - eager 与图模式、不同 capture sizes；
 - 量化与非量化、`fuse_norm_quant`；
 - MTP；
+- speculative decode 中 draft/target token、接受/拒绝结果及 logits processor 顺序；
 - prefix cache；
+- chunked prefill 与完整 prefill，以及对应的 `position_ids`、slot mapping 和 block table；
 - 单请求与多并发、不同 batch size；
 - TP 数量与拓扑；
 - mamba cache dtype；
@@ -116,6 +132,8 @@ git log --since=<date-a> --until=<date-b> --oneline -- <suspected-paths>
 - flaky 时的重复次数和停止条件。
 
 每次只改变待二分仓库的 commit。保存构建日志、实际 HEAD、依赖指纹、原始响应和判定。构建失败不能自动视为 bad；应标记 skip 或先处理兼容关系。
+
+每个候选 commit 或配置必须使用重新启动的服务和干净的请求状态，不复用上一候选的 KV cache、prefix cache 或仍在监听端口的旧进程。启动后核对 PID、工作目录、实际模块路径、served model name 和端口，再运行判据。OOM、HCCL、安装或启动失败属于 blocked/skip，不得判为精度 bad。采样存在非确定性时固定可固定的参数，并重复 2–3 次后按预先定义的规则判定。
 
 若无法可靠自动化，按候选 PR 和时间区间做手动二分，并完整记录每次选择。不要自动删除源码树或构建目录；优先使用独立工作区或容器。
 
@@ -173,7 +191,8 @@ tensor dump 的结论应包括首个偏差 tensor、两侧误差指标、对应�
 
 - 可稳定区分 good/bad 的结构化事实 curl、长序列 curl、真实失败样本或其他最小判据，并优先验证；
 - 固定小样本集，用于覆盖重复 decode、prefix reuse、batch/并发与状态缓存；
-- 原始全量数据集与原始并发/特性配置；
+- 用户指定目标数据集的原始全量评测与原始并发/特性配置（L4）；
+- 用户或项目验收明确要求的更广泛评测集合（L5）；
 - last-known-good 对照；
 - 受影响特性的关闭与开启两侧；
 - 相邻模型、shape、batch、TP 或 dtype 场景（按代码影响范围选择）；

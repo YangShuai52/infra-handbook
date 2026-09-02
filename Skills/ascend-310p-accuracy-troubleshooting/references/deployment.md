@@ -257,7 +257,7 @@ PY
 - CANN、PTA、驱动、固件、镜像与 NPU 拓扑指纹；
 - blocked 的准确原因和对应原始日志路径。
 
-只有 `status=ready` 才进入 [accuracy-testing.md](accuracy-testing.md) 的服务化和精度验证。该状态证明当前安装与预期源码一致，但不替代后续真实服务启动、分级 curl 和 TextVQA 回归。
+只有 `status=ready` 才进入 [accuracy-testing.md](accuracy-testing.md) 的服务化和精度验证。该状态证明当前安装与预期源码一致，但不替代后续真实服务启动、分级 curl 和用户指定目标数据集的回归。
 
 最终至少确认：
 
