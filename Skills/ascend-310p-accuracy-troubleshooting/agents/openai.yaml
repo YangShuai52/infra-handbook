@@ -1,4 +1,4 @@
 interface:
   display_name: "Ascend 310P 精度定位"
   short_description: "复现、缩小并定位 vLLM-Ascend 精度回归问题"
-  default_prompt: "Use $ascend-310p-accuracy-troubleshooting to reproduce and troubleshoot an accuracy regression on Ascend 310P."
+  default_prompt: "使用 $ascend-310p-accuracy-troubleshooting 复现并定位 Ascend 310P 上的推理精度回归。"
