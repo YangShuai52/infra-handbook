@@ -183,7 +183,83 @@ CANN、310P ops、NNAL 或 PTA（通常表现为 `torch_npu`）属于高影响�
 
 ## 部署完成后的核验
 
-至少确认：
+保留上述原始安装方式。安装完成后必须用运行时证据证明源码、包和解释器一致；无法证明时 fail closed，不得进入服务化和精度测试。
+
+每次首次安装、切换 commit 后重装、C++/自定义算子重编译或依赖修复后，都必须重新执行本节。使用与安装相同的 Python 解释器，不要混用裸 `pip`、其他虚拟环境或另一个 Python：
+
+```bash
+DIAG_PYTHON="$(command -v python3 || command -v python)"
+"$DIAG_PYTHON" -m pip --version
+"$DIAG_PYTHON" -m pip show vllm vllm-ascend torch-npu
+```
+
+### 1. 证明源码配对正确
+
+分别在 vLLM 和 vLLM-Ascend 源码目录记录：
+
+```bash
+git branch --show-current
+git rev-parse HEAD
+git status --short
+```
+
+读取当前 vLLM-Ascend checkout 的 `.github/vllm-main-verified.commit`，验证其内容与实际 vLLM `HEAD` 完全相等。若文件缺失、commit 无法解析或两者不等，状态为 blocked；不得仅凭两个包都能 import 就继续精度测试。只有用户明确要求非 verified 配对实验时才允许偏离，并将其标记为受控变量。
+
+### 2. 证明运行时加载了这些源码
+
+执行真实 import，不用 `find_spec()` 代替：
+
+```bash
+"$DIAG_PYTHON" - <<'PY'
+import json
+import sys
+import torch
+import torch_npu
+import vllm
+import vllm_ascend
+
+print(json.dumps({
+    "python": sys.executable,
+    "torch_version": torch.__version__,
+    "torch_path": torch.__file__,
+    "torch_npu_path": torch_npu.__file__,
+    "vllm_version": getattr(vllm, "__version__", "unknown"),
+    "vllm_path": vllm.__file__,
+    "vllm_ascend_path": vllm_ascend.__file__,
+}, indent=2, sort_keys=True))
+PY
+```
+
+将 `pip show` 的 `Location`/`Editable project location`、模块绝对路径与预期源码目录逐项比较。可编辑安装必须实际指向刚才记录 commit 的源码树；路径落到旧 clone、镜像自带 site-packages 或另一个 Python 环境时状态为 blocked，先按原安装流程修复，不能启动服务。
+
+### 3. 证明依赖和 310P 后处理可解释
+
+保存安装前后的 `pip freeze` diff，并运行：
+
+```bash
+"$DIAG_PYTHON" -m pip check
+"$DIAG_PYTHON" -m pip list | grep -i triton || true
+```
+
+若已按“310P 特有检查”获得授权并卸载 Triton，再确认 `triton`、`triton_ascend`/`triton-ascend` 均未残留。`pip check` 若只报告目标版本把 Triton 声明为通用依赖，可记录为 310P 元数据例外，并以真实 import 和服务 smoke 决定是否可用；其他缺失或冲突均阻断测试。不得为了让 `pip check` 变绿而自动装回 310P 不支持的组件。
+
+同时确认 CANN、PTA/`torch_npu`、驱动、固件和镜像身份与安装前记录一致；出现意外变化时停止，不把它带入 good/bad 精度对比。
+
+### 4. 输出结构化验收结论
+
+保存一份紧凑的安装验收记录，至少包含：
+
+- `status`: `ready` 或 `blocked`；
+- Python 可执行文件和 pip 路径；
+- vLLM-Ascend HEAD、verified vLLM commit、实际 vLLM HEAD；
+- `pip show` 元数据和三个关键模块的实际加载路径；
+- import smoke、依赖检查和 Triton 检查结果；
+- CANN、PTA、驱动、固件、镜像与 NPU 拓扑指纹；
+- blocked 的准确原因和对应原始日志路径。
+
+只有 `status=ready` 才进入 [accuracy-testing.md](accuracy-testing.md) 的服务化和精度验证。该状态证明当前安装与预期源码一致，但不替代后续真实服务启动、分级 curl 和 TextVQA 回归。
+
+最终至少确认：
 
 - `pip show` 指向预期源码路径；
 - 两个仓库 commit 与 `.github/vllm-main-verified.commit` 的关系明确；
