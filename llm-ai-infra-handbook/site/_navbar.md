@@ -1,3 +1,3 @@
 - [学习路径](/learning-paths.md)
-- [贡献内容](https://github.com/YangShuai52/infra-handbook/blob/main/CONTRIBUTING.md)
+- [贡献内容](https://github.com/YangShuai52/infra-handbook/blob/main/llm-ai-infra-handbook/CONTRIBUTING.md)
 - [GitHub](https://github.com/YangShuai52/infra-handbook)
