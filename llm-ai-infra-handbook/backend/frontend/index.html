@@ -1,0 +1,790 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>LLM &amp; AI Infra Handbook</title>
+<style>
+  :root {
+    --bg: #f6f7f9; --panel: #ffffff; --ink: #1f2329; --sub: #6b7280;
+    --line: #e6e8eb; --brand: #2563eb; --brand-soft: #eaf1ff;
+    --green: #16a34a; --amber: #d97706; --chip: #eef1f5; --red: #dc2626;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; font-family: -apple-system, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+         background: var(--bg); color: var(--ink); font-size: 14px; }
+  header { background: var(--panel); border-bottom: 1px solid var(--line); padding: 12px 20px;
+           display: flex; align-items: center; gap: 14px; position: sticky; top: 0; z-index: 10; }
+  header h1 { font-size: 17px; margin: 0; }
+  header .sub { color: var(--sub); font-size: 12px; }
+  .badge { font-size: 12px; padding: 2px 9px; border-radius: 999px; font-weight: 600; }
+  .badge.on { background: #e7f7ed; color: var(--green); }
+  .badge.off { background: #fff3e6; color: var(--amber); }
+  nav { display: flex; gap: 4px; margin-left: auto; }
+  nav button { border: none; background: transparent; padding: 7px 14px; border-radius: 8px;
+               cursor: pointer; color: var(--sub); font-size: 14px; }
+  nav button.active { background: var(--brand-soft); color: var(--brand); font-weight: 600; }
+  main { max-width: 1180px; margin: 18px auto; padding: 0 20px; }
+  .view { display: none; } .view.active { display: block; }
+
+  /* 知识体系 */
+  .kb { display: grid; grid-template-columns: 280px 1fr; gap: 16px; align-items: start; }
+  .tree { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; overflow: hidden; max-height: 78vh; overflow-y: auto; }
+  .mod-head { padding: 10px 12px; cursor: pointer; border-bottom: 1px solid var(--line);
+              display: flex; justify-content: space-between; align-items: center; font-weight: 600; }
+  .mod-head .cnt { color: var(--sub); font-weight: 400; font-size: 12px; }
+  .mod-cards { display: none; }
+  .mod-cards.open { display: block; }
+  .mod-cards .ci { padding: 8px 14px 8px 26px; border-bottom: 1px solid #f0f1f3; cursor: pointer; }
+  .mod-cards .ci:hover { background: var(--brand-soft); }
+  .ci .ct { font-size: 13px; } .ci .cf { font-size: 11px; color: var(--sub); }
+  .reader { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 22px 26px; min-height: 70vh; }
+  .reader h1 { margin-top: 0; font-size: 21px; } .reader h2 { font-size: 17px; margin-top: 26px; border-left: 4px solid var(--brand); padding-left: 10px; }
+  .reader pre { background: #0f172a; color: #e2e8f0; padding: 12px 14px; border-radius: 8px; overflow-x: auto; font-size: 12.5px; }
+  .reader code { background: #eef1f5; padding: 1px 5px; border-radius: 4px; font-size: 12.5px; }
+  .reader pre code { background: transparent; padding: 0; }
+  .reader table { border-collapse: collapse; width: 100%; margin: 12px 0; }
+  .reader th, .reader td { border: 1px solid var(--line); padding: 7px 10px; text-align: left; font-size: 13px; }
+  .reader th { background: #f2f4f7; }
+  .tags { margin: 8px 0 0; } .tag { display: inline-block; background: var(--chip); color: var(--sub); font-size: 11px; padding: 2px 8px; border-radius: 6px; margin: 0 5px 5px 0; }
+  .meta-row { color: var(--sub); font-size: 12px; margin-bottom: 4px; }
+
+  /* 问答 */
+  .ask-box { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 16px; }
+  .ask-box textarea { width: 100%; border: 1px solid var(--line); border-radius: 8px; padding: 10px 12px; font-size: 14px; resize: vertical; min-height: 56px; font-family: inherit; }
+  .ask-box .row { display: flex; gap: 10px; margin-top: 10px; align-items: center; }
+  .btn { background: var(--brand); color: #fff; border: none; padding: 9px 20px; border-radius: 8px; cursor: pointer; font-size: 14px; }
+  .btn.ghost { background: var(--chip); color: var(--ink); }
+  .btn:disabled { opacity: .55; cursor: not-allowed; }
+  .examples { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
+  .examples span { background: var(--brand-soft); color: var(--brand); padding: 4px 11px; border-radius: 999px; font-size: 12px; cursor: pointer; }
+  .answer { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 20px 24px; margin-top: 16px; min-height: 60px; }
+  .answer h1,.answer h2,.answer h3 { border-left: 4px solid var(--brand); padding-left: 10px; }
+  .answer pre { background: #0f172a; color: #e2e8f0; padding: 12px 14px; border-radius: 8px; overflow-x: auto; }
+  .answer code { background: #eef1f5; padding: 1px 5px; border-radius: 4px; }
+  .answer pre code { background: transparent; padding: 0; }
+  .answer table { border-collapse: collapse; width: 100%; margin: 12px 0; } .answer th,.answer td { border: 1px solid var(--line); padding: 6px 9px; }
+  .sources { margin-top: 14px; border-top: 1px dashed var(--line); padding-top: 12px; }
+  .src-item { border: 1px solid var(--line); border-radius: 8px; padding: 9px 12px; margin-bottom: 8px; cursor: pointer; }
+  .src-item:hover { background: var(--brand-soft); }
+  .src-item .s-t { font-weight: 600; } .src-item .s-s { color: var(--sub); font-size: 12px; }
+
+  /* 模型档案 */
+  .ma-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 14px; margin-top: 12px; }
+  .mcard { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 14px 16px; }
+  .mcard h3 { margin: 0 0 4px; font-size: 15px; } .mcard .org { color: var(--sub); font-size: 12px; }
+  .mcard .kv { font-size: 12.5px; margin: 6px 0; } .mcard .kv b { color: var(--ink); }
+  .mcard ul { margin: 6px 0 0; padding-left: 18px; font-size: 12.5px; color: #374151; }
+  .section-title { font-size: 15px; font-weight: 700; margin: 22px 0 4px; display: flex; align-items: center; gap: 10px; }
+  .toolbar { display: flex; gap: 10px; align-items: center; margin: 6px 0 4px; }
+  .note { color: var(--sub); font-size: 12px; }
+  .err { color: var(--red); font-size: 13px; }
+  .loading { color: var(--sub); font-size: 13px; padding: 10px 2px; }
+  /* 刷题 */
+  .study-strip { display: flex; gap: 12px; flex-wrap: wrap; margin-bottom: 14px; }
+  .stat-chip { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 10px 18px; min-width: 110px; }
+  .stat-chip .v { font-size: 20px; font-weight: 700; }
+  .stat-chip .k { color: var(--sub); font-size: 12px; }
+  .quiz-card { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 22px 26px; }
+  .quiz-card h2 { margin: 4px 0 10px; font-size: 19px; }
+  .quiz-hint { color: var(--sub); font-size: 12px; margin: 12px 0 0; }
+  .grade-row { display: flex; gap: 10px; margin-top: 16px; flex-wrap: wrap; align-items: center; }
+  .btn.g1 { background: var(--red); } .btn.g3 { background: var(--amber); }
+  .btn.g4 { background: var(--brand); } .btn.g5 { background: var(--green); }
+  .next-note { color: var(--green); font-weight: 600; }
+  .quiz-body { border-top: 1px dashed var(--line); margin-top: 14px; padding-top: 12px; }
+  .quiz-body h1 { font-size: 18px; } .quiz-body h2 { font-size: 15px; margin-top: 18px; border-left: 4px solid var(--brand); padding-left: 10px; }
+  .quiz-body pre { background: #0f172a; color: #e2e8f0; padding: 12px 14px; border-radius: 8px; overflow-x: auto; font-size: 12.5px; }
+  .quiz-body code { background: #eef1f5; padding: 1px 5px; border-radius: 4px; font-size: 12.5px; }
+  .quiz-body pre code { background: transparent; padding: 0; }
+  .quiz-body table { border-collapse: collapse; width: 100%; margin: 12px 0; }
+  .quiz-body th, .quiz-body td { border: 1px solid var(--line); padding: 6px 9px; text-align: left; }
+  .quiz-body th { background: #f2f4f7; }
+  .bar-row { display: flex; align-items: center; gap: 10px; margin: 8px 0; }
+  .bar-row .bm { width: 170px; color: var(--sub); font-size: 12px; }
+  .bar { height: 10px; background: var(--brand-soft); border-radius: 999px; overflow: hidden; flex: 1; }
+  .bar > i { display: block; height: 100%; background: var(--brand); }
+  .bar-row .bv { width: 100px; text-align: right; font-size: 12px; color: var(--sub); }
+  /* 面试模拟 */
+  select { border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px; font-size: 14px;
+           background: var(--panel); color: var(--ink); font-family: inherit; }
+  .iv-log { border-top: 1px dashed var(--line); margin-top: 14px; padding-top: 12px; }
+  .iv-qa { margin: 8px 0; }
+  .iv-qa .who { font-weight: 600; }
+  a { color: var(--brand); }
+</style>
+</head>
+<body>
+<header>
+  <h1>📚 LLM &amp; AI Infra Handbook</h1>
+  <span class="sub">LLM 基础 · 模型生命周期 · AI Infra · RAG / Agent · 工程实践</span>
+  <nav>
+    <button data-view="kb" class="active">知识体系</button>
+    <button data-view="ask">检索问答</button>
+    <button data-view="study">刷题</button>
+    <button data-view="interview">面试模拟</button>
+    <button data-view="models">模型档案</button>
+  </nav>
+</header>
+
+<main>
+  <!-- 知识体系 -->
+  <section id="view-kb" class="view active">
+    <div class="kb">
+      <div class="tree" id="tree"></div>
+      <div class="reader" id="reader"><p class="note">← 从左侧选择模块与卡片开始阅读。</p></div>
+    </div>
+  </section>
+
+  <!-- 检索问答 -->
+  <section id="view-ask" class="view">
+    <div class="ask-box">
+      <textarea id="q" placeholder="例如：RoPE 为什么能外推？7B 模型训练要多少显存？DPO 是怎么从 RLHF 推出来的？"></textarea>
+      <div class="row">
+        <button class="btn" id="askBtn">提问</button>
+        <span class="note" id="askMode"></span>
+      </div>
+      <div class="examples" id="examples"></div>
+    </div>
+    <div class="answer" id="answer" style="display:none"></div>
+    <div class="sources" id="sources"></div>
+  </section>
+
+  <!-- 面试模拟 -->
+  <section id="view-interview" class="view">
+    <div class="ask-box">
+      <div class="toolbar">
+        <select id="ivModule"></select>
+        <button class="btn" id="ivStart">开始模拟</button>
+        <button class="btn ghost" id="ivReportBtn" style="display:none">查看报告</button>
+        <span class="note" id="ivStatus"></span>
+      </div>
+      <div class="note" style="margin-top:8px">
+        配置了 <code>LLM_API_KEY</code> 时为 <b>AI 面试官模式</b>：流式评价你的回答并自动追问（同一话题最多 3 层）。
+        未配置时自动降级为 <b>追问链自测模式</b>：直接用卡片「面试追问」小节的真题自测，由你自评打分。
+        两种模式的结果都会写入复习数据，并在结束后生成练习报告。
+      </div>
+    </div>
+    <div id="ivStage" style="margin-top:12px"></div>
+    <div id="ivReport"></div>
+  </section>
+
+  <!-- 模型档案 -->
+  <section id="view-models" class="view">
+    <div class="section-title">🗂️ 本地种子档案 <span class="note">人工整理的里程碑开源模型技术要点（离线可用）</span></div>
+    <div class="ma-grid" id="seeds"></div>
+
+    <div class="section-title">🔥 HuggingFace Trending <span class="note">实时热门开源模型（免 Key 拉取）</span></div>
+    <div class="toolbar">
+      <button class="btn" id="trendBtn">刷新 Trending</button>
+      <span class="note" id="trendStatus"></span>
+    </div>
+    <div class="ma-grid" id="trending"></div>
+    <div id="trendDetail"></div>
+
+    <div class="section-title">📄 arXiv 前沿论文 <span class="note">最新 LLM 相关论文</span></div>
+    <div class="toolbar">
+      <button class="btn ghost" id="arxivBtn">加载最新论文</button>
+      <span class="note" id="arxivStatus"></span>
+    </div>
+    <div class="ma-grid" id="arxiv"></div>
+  </section>
+  <!-- 刷题 -->
+  <section id="view-study" class="view">
+    <div class="study-strip" id="studyStrip"></div>
+    <div class="toolbar">
+      <button class="btn" id="studyStart">开始刷题</button>
+      <button class="btn ghost" id="wrongBtn">错题本</button>
+      <button class="btn ghost" id="statsBtn">学习统计</button>
+      <span class="note" id="studyNote"></span>
+    </div>
+    <div id="studyMain" style="margin-top:12px">
+      <div class="quiz-card">
+        <h2>如何刷题？</h2>
+        <p class="note">点击「开始刷题」拉取今日复习队列：先看标题和摘要自测，再揭晓答案核对，最后按真实掌握程度自评。
+        遗忘的卡片会更快回到队列（SM-2 间隔重复），持续答对的卡片间隔越来越长。</p>
+      </div>
+    </div>
+    <div id="studyWrong" style="display:none"></div>
+    <div id="studyStats" style="display:none"></div>
+  </section>
+</main>
+
+<script>
+const $ = (s) => document.querySelector(s);
+const api = (p) => fetch(p).then(r => r.json());
+
+// 状态徽标
+api('/api/status').then(s => {
+  const el = document.createElement('span');
+  el.className = 'badge ' + (s.llm_enabled ? 'on' : 'off');
+  el.textContent = s.llm_enabled ? 'RAG 生成已启用' : '检索模式（未配置 LLM Key）';
+  document.querySelector('header').appendChild(el);
+  $('#askMode').textContent = s.llm_enabled
+    ? '已启用大模型 RAG 生成' : '未配置 LLM_API_KEY，将返回检索卡片';
+});
+
+// Tab 切换
+document.querySelectorAll('nav button').forEach(b => {
+  b.onclick = () => {
+    document.querySelectorAll('nav button').forEach(x => x.classList.remove('active'));
+    document.querySelectorAll('.view').forEach(x => x.classList.remove('active'));
+    b.classList.add('active');
+    $('#view-' + b.dataset.view).classList.add('active');
+  };
+});
+
+// ---------------- 知识体系 ----------------
+api('/api/modules').then(mods => {
+  const tree = $('#tree');
+  mods.forEach(m => {
+    const head = document.createElement('div');
+    head.className = 'mod-head';
+    head.innerHTML = `<span>${m.order}. ${m.title}</span><span class="cnt">${m.card_count}</span>`;
+    const wrap = document.createElement('div');
+    wrap.className = 'mod-cards';
+    m.cards.forEach(c => {
+      const ci = document.createElement('div');
+      ci.className = 'ci';
+      ci.innerHTML = `<div class="ct">${c.title}</div><div class="cf">${c.freq || ''} · ${c.difficulty || ''}</div>`;
+      ci.onclick = () => loadCard(c.id, ci);
+      wrap.appendChild(ci);
+    });
+    head.onclick = () => wrap.classList.toggle('open');
+    tree.appendChild(head); tree.appendChild(wrap);
+  });
+});
+
+function loadCard(id, ci) {
+  document.querySelectorAll('.ci').forEach(x => x.style.background = '');
+  if (ci) ci.style.background = 'var(--brand-soft)';
+  $('#reader').innerHTML = '<p class="loading">加载中…</p>';
+  api('/api/card/' + encodeURIComponent(id)).then(d => {
+    const sourceLinks = (d.source || []).filter(u => /^https?:\/\//.test(u)).map((u, i) =>
+      `<a href="${escapeHtml(u)}" target="_blank" rel="noopener noreferrer">来源 ${i + 1}</a>`
+    ).join(' · ');
+    $('#reader').innerHTML =
+      `<h1>${escapeHtml(d.title)}</h1>
+       <div class="meta-row">模块 ${escapeHtml(d.module)} · 频率 ${escapeHtml(d.freq || '—')} · 难度 ${escapeHtml(d.difficulty)} · 更新 ${escapeHtml(d.updated)}</div>
+       <div class="tags">${(d.tags||[]).map(t=>`<span class="tag">${escapeHtml(t)}</span>`).join('')}</div>
+       <p><b>摘要：</b>${escapeHtml(d.summary)}</p>
+       ${sourceLinks ? `<div class="meta-row"><b>延伸来源：</b>${sourceLinks}</div>` : ''}
+       <hr style="border:none;border-top:1px solid var(--line)">${d.html}`;
+  });
+}
+
+// 知识卡片内的「关联知识点」链接（href 为卡片 id）点击即跳转
+document.getElementById('reader').addEventListener('click', (e) => {
+  const a = e.target.closest('a');
+  if (!a) return;
+  const href = a.getAttribute('href') || '';
+  // 仅拦截「纯卡片 id」形式的内部链接（无协议、无斜杠）
+  if (/^https?:|^\/|^\./.test(href) || href.includes('/')) return;
+  e.preventDefault();
+  switchTab('kb');
+  loadCard(href);
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+});
+
+// ---------------- 检索问答 ----------------
+const EXAMPLES = [
+  'RoPE 为什么能外推？base 参数怎么影响？',
+  '7B 模型用 AdamW 训练要多少显存？',
+  'DPO 是怎么从 RLHF 推出来的？',
+  'MHA、MQA、GQA、MLA 的 KV Cache 差多少？',
+  'FlashAttention 为什么快？',
+  'LoRA 的 B 为什么要初始化为 0？',
+];
+const exBox = $('#examples');
+EXAMPLES.forEach(e => {
+  const s = document.createElement('span'); s.textContent = e;
+  s.onclick = () => { $('#q').value = e; doAsk(); };
+  exBox.appendChild(s);
+});
+
+function doAsk() {
+  const q = $('#q').value.trim();
+  if (!q) return;
+  const btn = $('#askBtn'); btn.disabled = true;
+  $('#answer').style.display = 'block'; $('#answer').innerHTML = '<p class="loading">思考中…</p>';
+  $('#sources').innerHTML = '';
+
+  fetch('/api/ask', { method: 'POST', headers: {'Content-Type':'application/json'},
+                      body: JSON.stringify({ query: q, top_k: 6 }) })
+  .then(async resp => {
+    const ct = resp.headers.get('content-type') || '';
+    if (ct.includes('text/event-stream')) {
+      // 流式 RAG
+      const reader = resp.body.getReader();
+      const dec = new TextDecoder();
+      let buf = '', sources = [], acc = '';
+      $('#answer').innerHTML = '';
+      while (true) {
+        const { value, done } = await reader.read();
+        if (done) break;
+        buf += dec.decode(value, { stream: true });
+        let idx;
+        while ((idx = buf.indexOf('\n\n')) >= 0) {
+          const chunk = buf.slice(0, idx); buf = buf.slice(idx + 2);
+          const line = chunk.startsWith('data:') ? chunk.slice(5).trim() : chunk.trim();
+          if (!line) continue;
+          try {
+            const ev = JSON.parse(line);
+            if (ev.type === 'sources') sources = ev.data;
+            else if (ev.type === 'token') { acc += ev.text; $('#answer').innerHTML = renderInline(acc); }
+          } catch (e) {}
+        }
+      }
+      renderSources(sources, '参考卡片');
+    } else {
+      const data = await resp.json();
+      if (data.mode === 'retrieval') {
+        $('#answer').innerHTML = `<p class="note">未配置 LLM_API_KEY，以下为检索到的相关知识卡片（按相关度排序）：</p>`;
+        renderSources(data.hits.map(h => ({ id:h.id, title:h.title, module:h.module, snippet:h.snippet, score:h.score })), '相关卡片');
+      } else if (data.error) {
+        $('#answer').innerHTML = `<p class="err">${data.error}</p>`;
+      }
+    }
+  })
+  .catch(e => { $('#answer').innerHTML = `<p class="err">请求失败：${e}</p>`; })
+  .finally(() => btn.disabled = false);
+}
+$('#askBtn').onclick = doAsk;
+$('#q').addEventListener('keydown', e => { if ((e.metaKey||e.ctrlKey) && e.key==='Enter') doAsk(); });
+
+function renderInline(text) {
+  // 极简渲染：转义后把换行换为 <br>，代码块 `x` 着色
+  const esc = text.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  return esc.replace(/\n/g, '<br>').replace(/`([^`]+)`/g, '<code>$1</code>');
+}
+function renderSources(list, label) {
+  const box = $('#sources');
+  if (!list || !list.length) { box.innerHTML = ''; return; }
+  box.innerHTML = `<div class="section-title" style="font-size:14px;margin:14px 0 8px">${label}</div>`;
+  list.forEach(s => {
+    const d = document.createElement('div');
+    d.className = 'src-item';
+    d.innerHTML = `<div class="s-t">${s.title}</div>` +
+      (s.snippet ? `<div class="s-s">${s.snippet}</div>` : '') +
+      (s.score ? `<div class="s-s">相关度 ${s.score}</div>` : '');
+    d.onclick = () => { if (s.id) { switchTab('kb'); loadCard(s.id); } };
+    box.appendChild(d);
+  });
+}
+function switchTab(v) {
+  document.querySelector(`nav button[data-view="${v}"]`).click();
+}
+
+// ---------------- 刷题（SM-2 间隔重复） ----------------
+let QUEUE = [], QIDX = 0, CURRENT = null;
+
+function renderStrip() {
+  api('/api/study/stats').then(s => {
+    $('#studyStrip').innerHTML = `
+      <div class="stat-chip"><div class="v">${s.due_today}</div><div class="k">今日待复习</div></div>
+      <div class="stat-chip"><div class="v">${s.started}/${s.total_cards}</div><div class="k">已开始 / 总卡片</div></div>
+      <div class="stat-chip"><div class="v">${s.mastered}</div><div class="k">已掌握</div></div>
+      <div class="stat-chip"><div class="v">${s.streak_days} 天</div><div class="k">连续学习</div></div>`;
+  });
+}
+
+$('#studyStart').onclick = () => {
+  $('#studyWrong').style.display = 'none'; $('#studyStats').style.display = 'none';
+  $('#studyMain').style.display = 'block';
+  startQueue();
+};
+$('#wrongBtn').onclick = renderWrongBook;
+$('#statsBtn').onclick = renderStatsView;
+document.querySelector('nav button[data-view="study"]').addEventListener('click', renderStrip);
+renderStrip();
+
+function startQueue() {
+  $('#studyNote').textContent = '拉取队列…';
+  api('/api/study/queue?limit=20').then(list => {
+    QUEUE = list; QIDX = 0;
+    if (!QUEUE.length) {
+      $('#studyNote').textContent = '';
+      $('#studyMain').innerHTML = '<div class="quiz-card"><h2>🎉 今日队列已刷完</h2><p class="note">去「知识体系」逛逛，或明天再来复习。</p></div>';
+      return;
+    }
+    $('#studyNote').textContent = `今日队列 ${QUEUE.length} 张`;
+    showQuizCard();
+  });
+}
+
+function showQuizCard() {
+  const item = QUEUE[QIDX];
+  $('#studyMain').innerHTML = '<p class="loading">加载中…</p>';
+  api('/api/study/quiz/' + encodeURIComponent(item.card_id)).then(v => {
+    CURRENT = v;
+    $('#studyMain').innerHTML = `
+      <div class="quiz-card">
+        <div class="meta-row">${escapeHtml(v.module)} · 第 ${QIDX + 1}/${QUEUE.length} 张${item.is_new ? ' · 新卡' : ' · 复习'}</div>
+        <h2>${escapeHtml(v.title)}</h2>
+        <p><b>自测提示：</b>${escapeHtml(v.summary)}</p>
+        <div class="tags">${(v.tags || []).map(t => `<span class="tag">${escapeHtml(t)}</span>`).join('')}</div>
+        <div class="quiz-hint">章节结构：${v.headings.map(escapeHtml).join(' → ')}</div>
+        <div id="quizBody" class="quiz-body" style="display:none"></div>
+        <div class="grade-row" id="gradeRow">
+          <button class="btn ghost" id="revealBtn">揭晓答案</button>
+        </div>
+      </div>`;
+    $('#revealBtn').onclick = revealAnswer;
+    window.scrollTo(0, 0);  // 瞬时滚动，避免平滑动画期间点击落点偏移
+  });
+}
+
+function revealAnswer() {
+  const btn = $('#revealBtn');
+  btn.disabled = true; btn.textContent = '加载正文…';
+  api('/api/card/' + encodeURIComponent(CURRENT.card_id)).then(d => {
+    const body = $('#quizBody');
+    body.style.display = 'block';
+    body.innerHTML = d.html;
+    $('#gradeRow').innerHTML = `
+      <button class="btn g1" data-q="1">完全想不起来</button>
+      <button class="btn g3" data-q="3">想起来但有错</button>
+      <button class="btn g4" data-q="4">想起来了，有点卡</button>
+      <button class="btn g5" data-q="5">秒答且完整</button>`;
+    document.querySelectorAll('#gradeRow [data-q]').forEach(b => {
+      b.onclick = () => submitGrade(parseInt(b.dataset.q, 10));
+    });
+    $('#gradeRow').scrollIntoView({ block: 'nearest' });
+  });
+}
+
+function submitGrade(q) {
+  fetch('/api/study/answer', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ card_id: CURRENT.card_id, quality: q }) })
+  .then(r => r.json().then(d => ({ ok: r.ok, d })))
+  .then(({ ok, d }) => {
+    if (!ok) { $('#studyNote').innerHTML = `<span class="err">${escapeHtml(d.detail || '提交失败')}</span>`; return; }
+    $('#gradeRow').innerHTML = `
+      <span class="next-note">✔ 已记录，下次复习：${d.next_interval_days} 天后（${d.due_at}）</span>
+      <button class="btn" id="nextBtn">下一张</button>`;
+    renderStrip();
+    $('#nextBtn').onclick = nextCard;
+  });
+}
+
+function nextCard() {
+  QIDX++;
+  if (QIDX >= QUEUE.length) {
+    $('#studyMain').innerHTML = '<div class="quiz-card"><h2>🎉 今日队列已刷完</h2><p class="note">复习成就 +1，明天再见！</p></div>';
+    $('#studyNote').textContent = '今日队列已刷完';
+    return;
+  }
+  showQuizCard();
+}
+
+function renderWrongBook() {
+  $('#studyMain').style.display = 'none'; $('#studyStats').style.display = 'none';
+  const box = $('#studyWrong'); box.style.display = 'block';
+  box.innerHTML = '<p class="loading">加载错题本…</p>';
+  api('/api/study/wrong-book').then(list => {
+    if (!list.length) { box.innerHTML = '<div class="quiz-card"><h2>📕 错题本</h2><p class="note">暂无错题，继续保持！</p></div>'; return; }
+    box.innerHTML = '<div class="section-title" style="margin-top:12px">📕 错题本 <span class="note">遗忘过的卡片，点击进入复习</span></div>';
+    list.forEach(w => {
+      const d = document.createElement('div');
+      d.className = 'src-item';
+      d.innerHTML = `<div class="s-t">${escapeHtml(w.title)}</div>
+        <div class="s-s">${escapeHtml(w.module)} · 遗忘 ${w.lapses} 次${w.avg_quality3 !== null ? ' · 近 3 次均分 ' + w.avg_quality3 : ''}</div>`;
+      d.onclick = () => { switchTab('kb'); loadCard(w.card_id); };
+      box.appendChild(d);
+    });
+  });
+}
+
+function renderStatsView() {
+  $('#studyMain').style.display = 'none'; $('#studyWrong').style.display = 'none';
+  const box = $('#studyStats'); box.style.display = 'block';
+  box.innerHTML = '<p class="loading">加载统计…</p>';
+  api('/api/study/stats').then(s => {
+    const rows = (s.by_module || []).map(m => `
+      <div class="bar-row">
+        <span class="bm">${escapeHtml(m.module)}</span>
+        <div class="bar"><i style="width:${Math.round(m.pass_rate * 100)}%"></i></div>
+        <span class="bv">${Math.round(m.pass_rate * 100)}% · ${m.answers} 次</span>
+      </div>`).join('');
+    box.innerHTML = `
+      <div class="quiz-card">
+        <h2>学习统计</h2>
+        <p>总卡片 ${s.total_cards} · 已开始 ${s.started} · 已掌握 ${s.mastered} · 今日待复习 ${s.due_today} · 连续学习 ${s.streak_days} 天</p>
+        <div class="section-title" style="font-size:14px;margin-top:16px">各模块通过率（自评通过次数 / 总答题次数）</div>
+        ${rows || '<p class="note">还没有答题记录，去「开始刷题」吧。</p>'}
+      </div>`;
+  });
+}
+
+// ---------------- 面试模拟 ----------------
+let IV = { sid: null, mode: null, cur: null, busy: false };
+
+api('/api/modules').then(mods => {
+  const sel = $('#ivModule');
+  mods.forEach(m => {
+    const o = document.createElement('option');
+    o.value = m.module; o.textContent = `${m.order}. ${m.title}（${m.card_count} 张）`;
+    sel.appendChild(o);
+  });
+});
+
+$('#ivStart').onclick = () => {
+  const module = $('#ivModule').value;
+  if (!module) return;
+  $('#ivStatus').textContent = '准备中…';
+  $('#ivStage').innerHTML = ''; $('#ivReport').innerHTML = '';
+  $('#ivReportBtn').style.display = 'none';
+  fetch('/api/interview/start', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ module }) })
+  .then(r => r.json())
+  .then(d => {
+    IV.sid = d.session_id;
+    IV.mode = d.mode || 'llm';
+    if (d.question) {
+      IV.cur = d.question;
+      renderInterview();
+      $('#ivStatus').textContent = IV.mode === 'selftest'
+        ? `自测模式 · 共 ${d.total} 题` : `AI 面试官 · 共 ${d.max_rounds || 10} 题`;
+    } else {
+      $('#ivStatus').innerHTML = `<span class="err">${escapeHtml(d.message || d.error || '无法开始')}</span>`;
+    }
+  });
+};
+
+function renderInterview() {
+  const q = IV.cur, stage = $('#ivStage');
+  if (!q) { finishInterview(); return; }
+  if (IV.mode === 'selftest') {
+    stage.innerHTML = `
+      <div class="quiz-card">
+        <div class="meta-row">追问链自测 · 第 ${q.index}/${q.total} 题</div>
+        <h2>${escapeHtml(q.question)}</h2>
+        <p class="note">先在心里作答，再按真实掌握程度自评。评分会写入复习数据（SM-2），错题会更快回到队列。</p>
+        <div class="grade-row" id="ivGrade">
+          <button class="btn g1" data-q="1">完全想不起来</button>
+          <button class="btn g3" data-q="3">想起来但有错</button>
+          <button class="btn g4" data-q="4">想起来了，有点卡</button>
+          <button class="btn g5" data-q="5">秒答且完整</button>
+        </div>
+      </div>`;
+    document.querySelectorAll('#ivGrade [data-q]').forEach(b => {
+      b.onclick = () => submitSelfGrade(parseInt(b.dataset.q, 10));
+    });
+  } else {
+    stage.innerHTML = `
+      <div class="quiz-card">
+        <div class="meta-row">AI 面试官 · 第 ${q.index || 1} 题${q.is_followup ? '（追问）' : ''}</div>
+        <h2>${escapeHtml(q.question)}</h2>
+        <div class="iv-log" id="ivLog"></div>
+        <div class="ask-box" style="margin-top:12px">
+          <textarea id="ivAnswer" placeholder="输入你的回答…（Cmd/Ctrl + Enter 提交）"></textarea>
+          <div class="row">
+            <button class="btn" id="ivSubmit">提交回答</button>
+            <span class="note" id="ivHint"></span>
+          </div>
+        </div>
+      </div>`;
+    $('#ivSubmit').onclick = submitLLMAnswer;
+    $('#ivAnswer').addEventListener('keydown', e => {
+      if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') submitLLMAnswer();
+    });
+  }
+  window.scrollTo(0, 0);  // 瞬时滚动，避免平滑动画期间点击落点偏移
+}
+
+function submitSelfGrade(quality) {
+  fetch('/api/interview/self-answer', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ session_id: IV.sid, quality }) })
+  .then(r => r.json().then(d => ({ ok: r.ok, d })))
+  .then(({ ok, d }) => {
+    if (!ok) { $('#ivStatus').innerHTML = `<span class="err">${escapeHtml(d.detail || '提交失败')}</span>`; return; }
+    if (d.done) { finishInterview(); return; }
+    IV.cur = d.next_question;
+    renderInterview();
+    $('#ivStatus').textContent = `自测模式 · ${d.progress.current}/${d.progress.total} 题`;
+  });
+}
+
+function submitLLMAnswer() {
+  const ans = $('#ivAnswer').value.trim();
+  if (!ans || IV.busy) return;
+  IV.busy = true;
+  const btn = $('#ivSubmit'); btn.disabled = true; btn.textContent = '评阅中…';
+  const log = $('#ivLog');
+  log.innerHTML = `<div class="iv-qa"><span class="who">你的回答：</span>${escapeHtml(ans.slice(0, 400))}</div>
+                   <div class="iv-qa" id="ivEval"><span class="who">面试官：</span><span class="note">评阅中…</span></div>`;
+  fetch('/api/interview/answer', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ session_id: IV.sid, answer: ans }) })
+  .then(async resp => {
+    const reader = resp.body.getReader(); const dec = new TextDecoder();
+    let buf = '', acc = '', decision = null;
+    while (true) {
+      const { value, done } = await reader.read();
+      if (done) break;
+      buf += dec.decode(value, { stream: true });
+      let idx;
+      while ((idx = buf.indexOf('\n\n')) >= 0) {
+        const chunk = buf.slice(0, idx); buf = buf.slice(idx + 2);
+        const line = chunk.startsWith('data:') ? chunk.slice(5).trim() : chunk.trim();
+        if (!line) continue;
+        try {
+          const ev = JSON.parse(line);
+          if (ev.type === 'token') {
+            acc += ev.text;
+            $('#ivEval').innerHTML = `<span class="who">面试官：</span>${renderInline(acc)}`;
+          } else if (ev.type === 'decision') {
+            decision = ev.data;
+          } else if (ev.type === 'error') {
+            $('#ivEval').innerHTML = `<span class="who">面试官：</span><span class="err">${escapeHtml(ev.message)}</span>`;
+          }
+        } catch (e) {}
+      }
+    }
+    if (decision) {
+      if (decision.note) $('#ivHint').textContent = decision.note;
+      if (decision.finished) { finishInterview(); return; }
+      IV.cur = decision.question;
+      renderInterview();
+    }
+  })
+  .catch(e => { $('#ivEval').innerHTML = `<span class="err">请求失败：${e}</span>`; })
+  .finally(() => { IV.busy = false; btn.disabled = false; btn.textContent = '提交回答'; });
+}
+
+function finishInterview() {
+  $('#ivStage').innerHTML = '<div class="quiz-card"><h2>本场结束 🎯</h2><p class="note">正在生成练习报告…</p></div>';
+  $('#ivStatus').textContent = '本场结束';
+  api('/api/interview/report?session_id=' + encodeURIComponent(IV.sid)).then(r => renderReport(r));
+}
+
+function renderReport(r) {
+  const box = $('#ivReport');
+  const mods = (r.by_module || []).map(m => `
+    <div class="bar-row">
+      <span class="bm">${escapeHtml(m.module)}</span>
+      <div class="bar"><i style="width:${Math.round(m.avg_score / 5 * 100)}%"></i></div>
+      <span class="bv">均分 ${m.avg_score} · ${m.count} 次</span>
+    </div>`).join('');
+  const weak = (r.weak_points || []).map(w => `
+    <div class="src-item" data-cid="${escapeHtml(w.card_id)}">
+      <div class="s-t">${escapeHtml(w.card_title)}</div>
+      <div class="s-s">${escapeHtml(w.module)} · 平均 ${w.avg_score} 分 · 作答 ${w.count} 次</div>
+    </div>`).join('');
+  const qs = (r.questions || []).map(q => `
+    <div class="src-item" data-cid="${escapeHtml(q.card_id)}">
+      <div class="s-t">${escapeHtml(q.card_title)} · ${q.score === null ? '未评分' : q.score + ' 分'}</div>
+      <div class="s-s">${escapeHtml(q.question)}</div>
+    </div>`).join('');
+  box.innerHTML = `
+    <div class="quiz-card" style="margin-top:12px">
+      <h2>练习报告</h2>
+      <p>模式：<b>${r.mode === 'selftest' ? '追问链自测' : 'AI 面试官'}</b> ·
+         共 ${r.summary.total_questions} 题（有效评分 ${r.summary.graded} 题） ·
+         均分 <b>${r.summary.avg_score ?? '—'}</b></p>
+      <div class="section-title" style="font-size:14px;margin-top:16px">各模块表现</div>
+      ${mods || '<p class="note">暂无数据</p>'}
+      <div class="section-title" style="font-size:14px;margin-top:16px">薄弱卡片 <span class="note">点击回到原文复习</span></div>
+      <div id="ivWeak">${weak || '<p class="note">没有明显薄弱点，继续保持！</p>'}</div>
+      <div class="grade-row">
+        <button class="btn" id="ivEnqueue">把薄弱卡片加入今日复习队列</button>
+        <span class="note" id="ivEnqNote"></span>
+      </div>
+      <div class="section-title" style="font-size:14px;margin-top:16px">逐题明细 <span class="note">可点击回到卡片</span></div>
+      <div id="ivDetail">${qs}</div>
+    </div>`;
+
+  [['#ivWeak', 1], ['#ivDetail', 1]].forEach(([sel]) => {
+    box.querySelectorAll(`${sel} [data-cid]`).forEach(el => {
+      el.onclick = () => { switchTab('kb'); loadCard(el.dataset.cid); };
+    });
+  });
+
+  $('#ivEnqueue').onclick = () => {
+    fetch('/api/interview/enqueue', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ session_id: IV.sid }) })
+    .then(r => r.json())
+    .then(d => {
+      const n = (d.updated || []).length;
+      $('#ivEnqNote').textContent = n ? `已把 ${n} 张卡片加入今日复习队列` : '无需加入：没有薄弱卡片';
+      renderStrip();
+    });
+  };
+}
+
+$('#ivReportBtn').onclick = () => { if (IV.sid) finishInterview(); };
+
+// ---------------- 模型档案 ----------------
+api('/api/models/seeds').then(list => {
+  const box = $('#seeds');
+  (list||[]).forEach(m => box.appendChild(modelCard(m, true)));
+});
+
+function modelCard(m, isSeed) {
+  const d = document.createElement('div');
+  d.className = 'mcard';
+  d.innerHTML = `<h3>${m.name}</h3><div class="org">${m.org||''} · ${m.params||''}</div>
+    <div class="kv"><b>上下文：</b>${m.context||'—'} &nbsp; <b>发布：</b>${m.release||'—'}</div>
+    <div class="kv"><b>架构：</b>${m.arch||'—'}</div>
+    <ul>${(m.highlights||[]).map(h=>`<li>${h}</li>`).join('')}</ul>
+    <div class="tags">${(m.tags||[]).map(t=>`<span class="tag">${t}</span>`).join('')}</div>`;
+  return d;
+}
+
+$('#trendBtn').onclick = () => {
+  $('#trendStatus').textContent = '拉取中…';
+  $('#trending').innerHTML = ''; $('#trendDetail').innerHTML = '';
+  api('/api/models/trending?limit=12').then(r => {
+    if (!r.ok) { $('#trendStatus').innerHTML = `<span class="err">失败：${r.error}</span>`; return; }
+    $('#trendStatus').textContent = `共 ${r.models.length} 个（${r.cached?'缓存':'实时'}）`;
+    r.models.forEach(m => {
+      const d = document.createElement('div');
+      d.className = 'mcard';
+      const dl = (m.downloads/1000).toFixed(1)+'k';
+      d.innerHTML = `<h3>${m.id}</h3><div class="org">👍 ${m.likes} · ⬇ ${dl} · ${m.pipeline_tag||''}</div>`;
+      d.style.cursor = 'pointer';
+      d.onclick = () => loadTrendCard(m.id);
+      $('#trending').appendChild(d);
+    });
+  });
+};
+
+function loadTrendCard(id) {
+  $('#trendDetail').innerHTML = `<div class="section-title">${id} · 技术细节</div><div class="loading">抓取 model card 中…</div>`;
+  api('/api/models/card?model_id=' + encodeURIComponent(id)).then(r => {
+    if (!r.readme_available) { $('#trendDetail').innerHTML += `<p class="err">无法获取 README：${r.error||''}</p>`; return; }
+    let html = '';
+    if (r.highlights && r.highlights.length)
+      html += `<div class="mcard"><b>关键参数/亮点：</b><ul>${r.highlights.map(h=>`<li>${escapeHtml(h)}</li>`).join('')}</ul></div>`;
+    const secs = Object.entries(r.sections||{});
+    if (secs.length) {
+      html += '<div class="ma-grid">';
+      secs.slice(0,6).forEach(([k,v]) => {
+        html += `<div class="mcard"><b>${escapeHtml(k)}</b><div class="kv">${escapeHtml(v.slice(0,400))}</div></div>`;
+      });
+      html += '</div>';
+    }
+    $('#trendDetail').innerHTML += html;
+  });
+}
+
+$('#arxivBtn').onclick = () => {
+  $('#arxivStatus').textContent = '加载中…';
+  api('/api/arxiv?max=10').then(r => {
+    if (!r.ok) { $('#arxivStatus').innerHTML = `<span class="err">失败：${r.error}</span>`; return; }
+    $('#arxivStatus').textContent = `共 ${r.papers.length} 篇（${r.cached?'缓存':'实时'}）`;
+    const box = $('#arxiv'); box.innerHTML = '';
+    r.papers.forEach(p => {
+      const d = document.createElement('div');
+      d.className = 'mcard';
+      d.innerHTML = `<h3><a href="${p.link}" target="_blank">${escapeHtml(p.title)}</a></h3>
+        <div class="org">${p.published} · ${escapeHtml((p.authors||[]).join(', '))}</div>
+        <div class="kv">${escapeHtml(p.summary)}</div>`;
+      box.appendChild(d);
+    });
+  });
+};
+
+function escapeHtml(s){ return String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;'); }
+</script>
+</body>
+</html>
