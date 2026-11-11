@@ -1,0 +1,14 @@
+.DS_Store
+.env
+.env.*
+!.env.example
+.venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+_site/
+
+# Local learning records and remote-content caches
+backend/data/*.db
+backend/data/hf_*.json
+backend/data/arxiv_*.json

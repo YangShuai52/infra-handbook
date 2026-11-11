@@ -1,0 +1,122 @@
+[
+  {
+    "id": "meta-llama/Llama-3.1-8B",
+    "name": "Llama 3.1 8B/70B/405B",
+    "org": "Meta",
+    "params": "8B / 70B / 405B",
+    "context": "128K",
+    "arch": "Decoder-only, GQA, RoPE(base=500000), SwiGLU, RMSNorm, 15.3T tokens 训练",
+    "release": "2024-07",
+    "highlights": [
+      "采用 GQA 将 KV Cache 显存降至 MHA 的 1/8，是 405B 能长上下文推理的关键",
+      "RoPE base 从 10000 提升到 500000，配合长上下文继续训练实现 128K 外推",
+      "15.3T token 预训练，405B 接近 GPT-4 级别，开启开源模型对标闭源时代"
+    ],
+    "tags": ["GQA", "RoPE", "长上下文", "里程碑"]
+  },
+  {
+    "id": "Qwen/Qwen3-235B-A22B",
+    "name": "Qwen3 235B-A22B",
+    "org": "阿里巴巴",
+    "params": "235B 总 / 22B 激活",
+    "context": "128K (native 32K)",
+    "arch": "MoE, 128 experts / top-8 路由, 精细负载均衡, hybrid 思考模式",
+    "release": "2025-04",
+    "highlights": [
+      "MoE 结构：235B 总参数仅激活 22B，推理成本接近 22B dense 模型",
+      "支持「思考/非思考」混合模式，可用 enable_thinking 开关切换推理深度",
+      "训练数据含 36 种语言，强化代码与数学能力（长 CoT 蒸馏）"
+    ],
+    "tags": ["MoE", "混合思考", "多语言"]
+  },
+  {
+    "id": "deepseek-ai/DeepSeek-V3",
+    "name": "DeepSeek-V3",
+    "org": "DeepSeek",
+    "params": "671B 总 / 37B 激活",
+    "context": "128K",
+    "arch": "DeepSeekMoE(细粒度专家+共享专家), MLA 注意力, 无辅助损失负载均衡, FP8 训练",
+    "release": "2024-12",
+    "highlights": [
+      "MLA(Multi-head Latent Attention)：KV 经低秩压缩，推理时 KV Cache 仅为 MHA 的 ~6%",
+      "细粒度 MoE + 共享专家 + 无辅助损失均衡(loss 直接约束专家负载)，训练更稳定",
+      "FP8 混合精度训练，将 671B 模型训练成本压到约 278 万 H800 卡时"
+    ],
+    "tags": ["MLA", "MoE", "FP8", "极致性价比"]
+  },
+  {
+    "id": "deepseek-ai/DeepSeek-R1",
+    "name": "DeepSeek-R1",
+    "org": "DeepSeek",
+    "params": "671B (含 R1-Zero)",
+    "context": "128K",
+    "arch": "基于 V3-Base，纯 RL(GRPO) 激发推理，蒸馏至 Qwen/Llama 小模型",
+    "release": "2025-01",
+    "highlights": [
+      "R1-Zero 证明无需 SFT、纯 RL 即可涌现长链推理与自我验证（aha moment）",
+      "R1 用冷启动数据 + 多阶段 RL(含拒绝采样) 解决 R1-Zero 可读性与语言混杂问题",
+      "将推理能力蒸馏到 7B/14B/32B 小模型，小模型推理大幅超越同尺寸模型"
+    ],
+    "tags": ["GRPO", "RLVR", "推理模型", "蒸馏"]
+  },
+  {
+    "id": "mistralai/Mixtral-8x7B",
+    "name": "Mixtral 8x7B / 8x22B",
+    "org": "Mistral AI",
+    "params": "47B 总 / 13B 激活 (8x7B)",
+    "context": "32K",
+    "arch": "Sparse MoE, 8 专家 top-2 路由, Sliding Window Attention",
+    "release": "2023-12",
+    "highlights": [
+      "首个开源高质量 MoE，8x7B 以 13B 激活参数达到 70B dense 级别效果",
+      "Sliding Window Attention 限制每 token 仅看局部窗口，配合滚动缓冲高效处理长序列",
+      "用 top-2 路由 + 专家容量，单次前向仅激活约 2 个专家"
+    ],
+    "tags": ["MoE", "滑动窗口", "高效推理"]
+  },
+  {
+    "id": "google/gemma-2-9b",
+    "name": "Gemma 2 2B/9B/27B",
+    "org": "Google",
+    "params": "2B / 9B / 27B",
+    "context": "8K",
+    "arch": "GQA, 交替局部/全局注意力(每两层一次全局窗口), 知识蒸馏训练小模型",
+    "release": "2024-06",
+    "highlights": [
+      "9B 模型在多数基准上超过 Llama3-8B，27B 逼近 Llama3-70B",
+      "交替注意力：部分层用全局长上下文、其余层用局部滑动窗口，兼顾效率与全局感知",
+      "2B 通过大规模蒸馏从更大教师模型获得，验证了「小模型靠蒸馏补数据」路线"
+    ],
+    "tags": ["GQA", "交替注意力", "蒸馏"]
+  },
+  {
+    "id": "THUDM/glm-4-9b",
+    "name": "GLM-4 系列",
+    "org": "智谱 AI / 清华",
+    "params": "9B / 32B / 130B+",
+    "context": "128K (9B/32B)",
+    "arch": "GLM 自回归空白填充变体, RoPE, Multi-query(部分), 长上下文 + 函数调用",
+    "release": "2024",
+    "highlights": [
+      "GLM 采用独特的自回归空白填充预训练目标，兼具生成与理解能力",
+      "GLM-4-9B 支持 128K 上下文与多语言、工具调用，9B 级开源标杆之一",
+      "强调中文能力与 Agent 工具调用，是国内中文场景常用基座"
+    ],
+    "tags": ["中文", "工具调用", "长上下文"]
+  },
+  {
+    "id": "microsoft/Phi-3-mini",
+    "name": "Phi-3 / Phi-4",
+    "org": "Microsoft",
+    "params": "3.8B (mini) / 14B",
+    "context": "128K (mini)",
+    "arch": "textbook-quality 数据训练的小模型, Dense Transformer",
+    "release": "2024-06",
+    "highlights": [
+      "核心理念：用「教科书级」高质量合成+筛选数据，小模型也能获得强推理",
+      "Phi-3-mini(3.8B) 在多项基准上超过参数大数倍的模型，是数据质量>数量的最佳例证",
+      "Phi-4(14B) 进一步用合成数据大幅提升数学/推理，挑战「参数决定论」"
+    ],
+    "tags": ["数据质量", "小模型", "合成数据"]
+  }
+]
